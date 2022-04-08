@@ -13,6 +13,8 @@ export interface IProps {
   min: number;
   max: number;
   step: number;
+  thumbOffsetX: number[];
+  thumbOffsetY: number[];
   direction: Direction;
   allowOverlap: boolean;
   draggableTrack: boolean;

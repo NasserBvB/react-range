@@ -30,7 +30,9 @@ class Range extends React.Component<IProps> {
     allowOverlap: false,
     draggableTrack: false,
     min: 0,
-    max: 100
+    max: 100,
+    thumbOffsetX: [0],
+    thumbOffsetY: [0],
   };
   trackRef = React.createRef<HTMLElement>();
   thumbRefs: React.RefObject<HTMLElement>[] = [];
@@ -69,9 +71,9 @@ class Range extends React.Component<IProps> {
     this.resizeObserver = (window as any).ResizeObserver
       ? new (window as any).ResizeObserver(this.onResize)
       : {
-          observe: () => window.addEventListener('resize', this.onResize),
-          unobserve: () => window.removeEventListener('resize', this.onResize)
-        };
+        observe: () => window.addEventListener('resize', this.onResize),
+        unobserve: () => window.removeEventListener('resize', this.onResize)
+      };
 
     document.addEventListener('touchstart', this.onMouseOrTouchStart as any, {
       passive: false
@@ -149,38 +151,46 @@ class Range extends React.Component<IProps> {
   }
 
   getOffsets = () => {
-    const { direction, values, min, max } = this.props;
+    const { direction, values, min, max, thumbOffsetX, thumbOffsetY, } = this.props;
     const trackElement = this.trackRef.current!;
     const trackRect = trackElement.getBoundingClientRect();
     const trackPadding = getPaddingAndBorder(trackElement);
     return this.getThumbs().map((thumb, index) => {
-      const thumbOffsets = { x: 0, y: 0 };
+      const thumbOffsets = { x: thumbOffsetX[index], y: thumbOffsetY[index] };
       const thumbRect = thumb.getBoundingClientRect();
       const thumbMargins = getMargin(thumb);
+
+      const shouldStopAtInitialOffset = relativeValue(values[index], min, max) * trackRect.width <= thumbOffsetX[index] ? 0 : 1;
+      const stopAtInitialOffset = shouldStopAtInitialOffset < 1 ? thumbOffsetX[index] : 0;
+
+      if (shouldStopAtInitialOffset < 1) {
+        
+      }
+
       switch (direction) {
         case Direction.Right:
-          thumbOffsets.x = (thumbMargins.left + trackPadding.left) * -1;
+          thumbOffsets.x = ((thumbMargins.left + trackPadding.left) * -1) * shouldStopAtInitialOffset + stopAtInitialOffset;
           thumbOffsets.y =
             ((thumbRect.height - trackRect.height) / 2 + trackPadding.top) * -1;
           thumbOffsets.x +=
-            trackRect.width * relativeValue(values[index], min, max) -
-            thumbRect.width / 2;
+            (trackRect.width * relativeValue(values[index], min, max) -
+            thumbRect.width / 2) * shouldStopAtInitialOffset;
           return thumbOffsets;
         case Direction.Left:
-          thumbOffsets.x = (thumbMargins.right + trackPadding.right) * -1;
+          thumbOffsets.x = ((thumbMargins.right + trackPadding.right) * -1) * shouldStopAtInitialOffset + stopAtInitialOffset;
           thumbOffsets.y =
             ((thumbRect.height - trackRect.height) / 2 + trackPadding.top) * -1;
           thumbOffsets.x +=
-            trackRect.width -
+            (trackRect.width -
             trackRect.width * relativeValue(values[index], min, max) -
-            thumbRect.width / 2;
+            thumbRect.width / 2) * shouldStopAtInitialOffset;
           return thumbOffsets;
         case Direction.Up:
           thumbOffsets.x =
-            ((thumbRect.width - trackRect.width) / 2 +
+            (((thumbRect.width - trackRect.width) / 2 +
               thumbMargins.left +
               trackPadding.left) *
-            -1;
+            -1) * shouldStopAtInitialOffset + stopAtInitialOffset;
           thumbOffsets.y = -trackPadding.left;
           thumbOffsets.y +=
             trackRect.height -
@@ -189,10 +199,10 @@ class Range extends React.Component<IProps> {
           return thumbOffsets;
         case Direction.Down:
           thumbOffsets.x =
-            ((thumbRect.width - trackRect.width) / 2 +
+            (((thumbRect.width - trackRect.width) / 2 +
               thumbMargins.left +
               trackPadding.left) *
-            -1;
+            -1) * shouldStopAtInitialOffset + stopAtInitialOffset;
           thumbOffsets.y = -trackPadding.left;
           thumbOffsets.y +=
             trackRect.height * relativeValue(values[index], min, max) -
@@ -387,7 +397,7 @@ class Range extends React.Component<IProps> {
           index,
           this.normalizeValue(
             values[index] -
-              inverter * (e.key === 'PageDown' ? step * 10 : step),
+            inverter * (e.key === 'PageDown' ? step * 10 : step),
             index
           )
         )
@@ -494,7 +504,7 @@ class Range extends React.Component<IProps> {
         case Direction.Left:
           newValue =
             ((trackLength - (clientX - trackRect.left)) / trackLength) *
-              (max - min) +
+            (max - min) +
             min;
           break;
         case Direction.Down:
@@ -504,7 +514,7 @@ class Range extends React.Component<IProps> {
         case Direction.Up:
           newValue =
             ((trackLength - (clientY - trackRect.top)) / trackLength) *
-              (max - min) +
+            (max - min) +
             min;
           break;
         default:
@@ -626,12 +636,12 @@ class Range extends React.Component<IProps> {
             draggedThumbIndex > -1
               ? 'grabbing'
               : this.props.draggableTrack
-              ? isVertical(this.props.direction)
-                ? 'ns-resize'
-                : 'ew-resize'
-              : values.length === 1 && !disabled
-              ? 'pointer'
-              : 'inherit'
+                ? isVertical(this.props.direction)
+                  ? 'ns-resize'
+                  : 'ew-resize'
+                : values.length === 1 && !disabled
+                  ? 'pointer'
+                  : 'inherit'
         },
         onMouseDown: disabled ? voidFn : this.onMouseDownTrack,
         onTouchStart: disabled ? voidFn : this.onTouchStartTrack,
@@ -645,17 +655,17 @@ class Range extends React.Component<IProps> {
             props: {
               style:
                 this.props.direction === Direction.Left ||
-                this.props.direction === Direction.Right
+                  this.props.direction === Direction.Right
                   ? {
-                      position: 'absolute',
-                      left: `${offset[0]}px`,
-                      marginTop: `${offset[1]}px`
-                    }
+                    position: 'absolute',
+                    left: `${offset[0]}px`,
+                    marginTop: `${offset[1]}px`
+                  }
                   : {
-                      position: 'absolute',
-                      top: `${offset[0]}px`,
-                      marginLeft: `${offset[1]}px`
-                    },
+                    position: 'absolute',
+                    top: `${offset[0]}px`,
+                    marginLeft: `${offset[1]}px`
+                  },
               key: `mark${index}`,
               ref: this.markRefs[index]
             },
